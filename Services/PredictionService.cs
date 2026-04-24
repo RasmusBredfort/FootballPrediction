@@ -16,7 +16,8 @@ namespace FootballPrediction.Services
 
         public List<Match> GetLastFiveMatchesByTeam(string teamName)
         {
-            return _context.Matches.Where(m => (m.HomeTeam == teamName || m.AwayTeam == teamName) && m.Status == "FINISHED")
+            return _context.Matches
+                .Where(m => (m.HomeTeam == teamName || m.AwayTeam == teamName) && m.Status == "FINISHED")
                 .OrderByDescending(m => m.MatchDay)
                 .Take(5).ToList();
         }
@@ -78,50 +79,15 @@ namespace FootballPrediction.Services
             var homeStats = GetTeamStatistics(homeTeam);
             var awayStats = GetTeamStatistics(awayTeam);
 
-            double winsWeight = 3;
-            double drawsWeight = 1;
-            double lossesWeight = -2;
-            double goalsScoredWeight = 0.5;
-            double goalsConcededWeight = -0.5;
-            double homeAdvantageWeight = 1.5;
+            double homeScore = CalculateBaseScore(homeStats);
+            double awayScore = CalculateBaseScore(awayStats);
 
-            double homeScore =
-                (homeStats.Wins * winsWeight) +
-                (homeStats.Draws * drawsWeight) +
-                (homeStats.Losses * lossesWeight) +
-                (homeStats.GoalsScored * goalsScoredWeight) +
-                (homeStats.GoalsConceded * goalsConcededWeight) +
-                homeAdvantageWeight;
+            homeScore = ApplyHomeAdvantage(homeScore);
 
-            double awayScore =
-                (awayStats.Wins * winsWeight) +
-                (awayStats.Draws * drawsWeight) +
-                (awayStats.Losses * lossesWeight) +
-                (awayStats.GoalsScored * goalsScoredWeight) +
-                (awayStats.GoalsConceded * goalsConcededWeight);
+            string predictedOutcome = DetermineOutcome(homeScore, awayScore);
+            string reason = BuildReason(predictedOutcome);
 
-            string predictedOutcome;
-            string reason;
-
-            double difference = Math.Abs(homeScore - awayScore);
-
-            if(difference < 1.0)
-            {
-                predictedOutcome = "Draw";
-                reason = "The teams are very close in form";
-            }
-            else if (homeScore >  awayScore) 
-            {
-                predictedOutcome = "HomeWin";
-                reason = "The home team is in better form";
-            }
-            else
-            {
-                predictedOutcome = "AwayWin";
-                reason = "The away team is in better form";
-            }
-
-            var predictionResult = new PredictionResult
+            return new PredictionResult
             {
                 HomeTeam = homeTeam,
                 AwayTeam = awayTeam,
@@ -130,8 +96,60 @@ namespace FootballPrediction.Services
                 PredictedOutcome = predictedOutcome,
                 Reason = reason
             };
+        }
 
-            return predictionResult;
+        public double CalculateBaseScore(TeamStatistics stats)
+        {
+            double winsWeight = 3;
+            double drawsWeight = 1;
+            double lossesWeight = -2;
+            double goalsScoredWeight = 0.5;
+            double goalsConcededWeight = -0.5;
+
+            return
+                (stats.Wins * winsWeight) +
+                (stats.Draws * drawsWeight) +
+                (stats.Losses * lossesWeight) +
+                (stats.GoalsScored * goalsScoredWeight) +
+                (stats.GoalsConceded * goalsConcededWeight);
+        }
+
+        public double ApplyHomeAdvantage(double score)
+        {
+            double homeAdvantageWeight = 1.5;
+            return score + homeAdvantageWeight;
+        }
+
+        private string DetermineOutcome(double homeScore, double awayScore)
+        {
+            double difference = Math.Abs(homeScore - awayScore);
+
+            if (difference < 1.0)
+            {
+                return "Draw";
+            }
+
+            if (homeScore > awayScore)
+            {
+                return "HomeWin";
+            }
+
+            return "AwayWin";
+        }
+
+        private string BuildReason(string predictedOutcome)
+        {
+            if (predictedOutcome == "Draw")
+            {
+                return "The teams are very close based on recent form and goals.";
+            }
+
+            if (predictedOutcome == "HomeWin")
+            {
+                return "The home team has stronger recent form and home advantage.";
+            }
+
+            return "The away team has stronger recent form.";
         }
     }
 }
