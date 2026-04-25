@@ -104,5 +104,19 @@ namespace FootballPrediction.Services
             return matches.Count;
         }
 
+        public async Task<FootballStandingsResponse?> GetFootballStandingsAsync()
+        {
+            var response = await _httpClient.GetAsync("competitions/PL/standings");
+            response.EnsureSuccessStatusCode();
+
+            var json = await response.Content.ReadAsStringAsync();
+
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
+            return JsonSerializer.Deserialize<FootballStandingsResponse>(json, options);
+        }       
     }
 }

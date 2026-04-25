@@ -73,10 +73,23 @@ namespace FootballPrediction.Controllers
         }
 
         [HttpGet("Match-Prediction")]
-        public IActionResult PredictMatch([FromQuery] string homeTeam, [FromQuery] string awayTeam)
+        public async Task<IActionResult> PredictMatch([FromQuery] string homeTeam, [FromQuery] string awayTeam)
         {
-            var prediction = _predictionService.PredictMatch(homeTeam, awayTeam);
+            var prediction = await _predictionService.PredictMatchAsync(homeTeam, awayTeam);
             return Ok(prediction);
+        }
+
+        [HttpGet("standings")]
+        public async Task<IActionResult> GetFootballStandings()
+        {
+            var standings = await _footballDataService.GetFootballStandingsAsync();
+
+            if(standings == null)
+            {
+                return NotFound();
+            }
+
+            return Ok(standings);
         }
     }
 }

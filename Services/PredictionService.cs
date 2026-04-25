@@ -9,9 +9,11 @@ namespace FootballPrediction.Services
     {
         
         private readonly ApplicationDbContext _context;
-        public PredictionService(ApplicationDbContext context)
+        private readonly FootballDataService _footballDataService;
+        public PredictionService(ApplicationDbContext context, FootballDataService footballDataService)
         {
             _context = context;
+            _footballDataService = footballDataService;
         }
 
         public List<Match> GetLastFiveMatchesByTeam(string teamName)
@@ -74,13 +76,26 @@ namespace FootballPrediction.Services
             return statistics;
         }
 
-        public PredictionResult PredictMatch(string homeTeam, string awayTeam)
+        public async Task<PredictionResult> PredictMatchAsync(string homeTeam, string awayTeam)
         {
             var homeStats = GetTeamStatistics(homeTeam);
             var awayStats = GetTeamStatistics(awayTeam);
 
+            var homeStanding = await GetStandingByTeamAsync(homeTeam);
+            var awayStanding = await GetStandingByTeamAsync(awayTeam);
+
             double homeScore = CalculateBaseScore(homeStats);
             double awayScore = CalculateBaseScore(awayStats);
+
+            if(homeStanding != null)
+            {
+                homeScore += CalculateStandingsScore(homeStanding);
+            }
+
+            if(awayStanding != null)
+            {
+                awayScore += CalculateStandingsScore(awayStanding);
+            }
 
             homeScore = ApplyHomeAdvantage(homeScore);
 
@@ -150,6 +165,37 @@ namespace FootballPrediction.Services
             }
 
             return "The away team has stronger recent form.";
+        }
+
+        public async Task<FootballStandingTableEntryDto?> GetStandingByTeamAsync(string teamName)
+        {
+            var standingResponse = await _footballDataService.GetFootballStandingsAsync();
+
+            if(standingResponse == null)
+            {
+                return null;
+            }
+
+            var totalStanding = standingResponse.Standings.FirstOrDefault(s => s.Type == "TOTAL");
+
+            if(totalStanding == null)
+            {
+                return null;
+            }
+
+            var teamStanding = totalStanding.Table.FirstOrDefault(t => t.Team.Name == teamName);
+
+            return teamStanding;
+        }
+
+        public double CalculateStandingsScore(FootballStandingTableEntryDto standing)
+        {
+            double pointsWeight = 0.1;
+            double goalDifferenceWeight = 0.05;
+
+            double standingscore = (standing.Points * pointsWeight) + (standing.GoalDifference * goalDifferenceWeight);
+
+            return standingscore;
         }
     }
 }
